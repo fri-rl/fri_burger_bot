@@ -12,8 +12,15 @@ class BurgerBot(BurgerBotBase):
     # However, the follwoing methods should occur (at least once each)
     # somewhere in your implementations
     #
-    # self.get_endeffector_pose(joint_state): returns a 7 dof
+    # self.get_endeffector_pose(joint_state): returns a 6d numpy array
+    # containing the endeffector pose as [x,y,z,roll,pitch,yaw] for the given joint state
     #
+    # self.get_joint_limits(): return the lower and upper joint limits of the robot
+    #
+    # self.get_jacobian(joint_state): return the jacobian for the given joint state
+    # the orientation of the endeffector is considered to be represented as roll, pitch, yaw angles
+
+
 
 
 
