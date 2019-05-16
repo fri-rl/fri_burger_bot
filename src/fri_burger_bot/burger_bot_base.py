@@ -24,6 +24,7 @@ class BurgerBotBase(object):
 
         self._target_thread = threading.Thread(target=self._compute_target)
         self._items_thread = threading.Thread(target=self._publish_items)
+        self._filtered_point_cloud_thread = threading.Thread(target=self._publish_filtered_point_cloud)
 
 
         self._io_thread = threading.Thread(target=self._io_run)
@@ -36,9 +37,10 @@ class BurgerBotBase(object):
         self._joint_states_sub = rospy.Subscriber("/alexei/joint/states", JointState, self._joint_states_cb)
 
 
-
         self._point_cloud = None
         self._point_cloud_sub = rospy.Subscriber("/kinect1/qhd/points/", PointCloud2, self._point_cloud_cb)
+
+        self._filtered_point_cloud_pub = rospy.Publisher('/alexei/filtered_point_cloud2', PointCloud2, queue_size=10)
 
 
         possible_items = ['burger','tomato','cheese','salat','toast1','toast2']
@@ -51,7 +53,22 @@ class BurgerBotBase(object):
 
         self._des_joint_state = np.array([0.0,0.0,0.0,0.0,0.0,0.0,0.0])
 
+    def filter_point_cloud(self, point_cloud):
 
+        return point_cloud
+
+    def _publish_filtered_point_cloud(self):
+
+        rate = rospy.Rate(10)
+        while self.keep_running:
+            if self._point_cloud is not None:
+                cloud = ros_numpy.point_cloud2.array_to_pointcloud2(ros_numpy.point_cloud2.get_array_from_xyzrgb(self._point_cloud), rospy.Time.now(), 'alexei/base')
+                self._filtered_point_cloud_pub.publish(cloud)
+            try:
+                rate.sleep()
+            except rospy.exceptions.ROSTimeMovedBackwardsException as err:
+                # print(err)
+                pass
 
     def get_joint_state(self):
         return self._joint_state
@@ -75,6 +92,7 @@ class BurgerBotBase(object):
         self._camera_pose_thread.start()
         self._target_thread.start()
         self._items_thread.start()
+        self._filtered_point_cloud_thread.start()
         self._io_thread.start()
 
     def stop(self):
@@ -86,7 +104,7 @@ class BurgerBotBase(object):
         self._camera_pose_thread.join()
         self._target_thread.join()
         self._items_thread.join()
-
+        self._filtered_point_cloud_thread.join()
 
 
 
@@ -102,7 +120,7 @@ class BurgerBotBase(object):
         R = euler_matrix(transform[3],transform[4],transform[5])[:3,:3]
         point_cloud[:,0:3] = np.dot(R,point_cloud[:,0:3].T).T + transform[0:3]
 
-        self._point_cloud = point_cloud
+        self._point_cloud = self.filter_point_cloud(point_cloud)
 
 
     def _publish_frame(self, frame_pose, frame_name):
