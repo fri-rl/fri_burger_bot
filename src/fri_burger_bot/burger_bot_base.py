@@ -25,6 +25,7 @@ class BurgerBotBase(object):
         self._target_thread = threading.Thread(target=self._compute_target)
         self._items_thread = threading.Thread(target=self._publish_items)
         self._filtered_point_cloud_thread = threading.Thread(target=self._publish_filtered_point_cloud)
+        self._ghost_thread = threading.Thread(target=self._publish_ghost)
 
 
         self._io_thread = threading.Thread(target=self._io_run)
@@ -35,6 +36,7 @@ class BurgerBotBase(object):
 
         self._joint_state = np.array([0.0,0.0,0.0,0.0,0.0,0.0,0.0])
         self._joint_states_sub = rospy.Subscriber("/alexei/joint/states", JointState, self._joint_states_cb)
+        self._ghost_states_pub = rospy.Publisher("/alexei/ghost/joint/states", JointState, queue_size=10)
 
 
         self._point_cloud = None
@@ -51,7 +53,7 @@ class BurgerBotBase(object):
         self.item_clouds = None
         self.item_names = None
 
-        self._des_joint_state = np.array([0.0,0.0,0.0,0.0,0.0,0.0,0.0])
+        self._des_joint_state = None
 
     def filter_point_cloud(self, point_cloud):
 
@@ -92,6 +94,7 @@ class BurgerBotBase(object):
         self._camera_pose_thread.start()
         self._target_thread.start()
         self._items_thread.start()
+        self._ghost_thread.start()
         self._filtered_point_cloud_thread.start()
         self._io_thread.start()
 
@@ -104,9 +107,31 @@ class BurgerBotBase(object):
         self._camera_pose_thread.join()
         self._target_thread.join()
         self._items_thread.join()
+        self._ghost_thread.join()
         self._filtered_point_cloud_thread.join()
 
 
+    def _publish_ghost(self):
+
+        rate = rospy.Rate(100)
+        while self.keep_running:
+
+            if self._des_joint_state is not None:
+                des_joint_state = self._des_joint_state
+                des_joint_state_msg = JointState()
+                des_joint_state_msg.header.stamp = rospy.Time.now()
+                des_joint_state_msg.name = ["head_pan", "right_j0", "right_j1", "right_j2", "right_j3", "right_j4", "right_j5", "right_j6", "torso_t0"]
+                des_joint_state_msg.position = [0.0]*9
+                des_joint_state_msg.position[1:8] = des_joint_state
+                des_joint_state_msg.velocity = [0.0]*9
+                des_joint_state_msg.effort = [0.0]*9
+                self._ghost_states_pub.publish(des_joint_state_msg)
+
+            try:
+                rate.sleep()
+            except rospy.exceptions.ROSTimeMovedBackwardsException as err:
+                # print(err)
+                pass
 
     def _joint_states_cb(self, msg):
 
@@ -169,16 +194,16 @@ class BurgerBotBase(object):
                 del joint_state_history[0]
 
             if len(joint_state_history) == joint_state_history_max:
-                intersection = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0 ]
-                intersection[0:3] = self.compute_z_intersection(joint_state_history)
-                # print(intersection)
-                self._publish_frame(intersection, "intersection")
+                intersection = self.compute_z_intersection(joint_state_history)
+                if intersection is not None:
+                    intersection = np.append(intersection, [1.0, 0.0, 0.0, 0.0])
+                    self._publish_frame(intersection, "intersection")
 
-                if self.items is not None:
-                    target_item, target_name = self.identify_target_item(self.items, self.item_names, intersection[0:3])
-                    target = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
-                    target[0:3] = target_item[0:3]
-                    self._publish_frame(target, "target")
+                    if self.items is not None:
+                        target_item, target_name = self.identify_target_item(self.items, self.item_names, intersection[0:3])
+                        target = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+                        target[0:3] = target_item[0:3]
+                        self._publish_frame(target, "target")
 
             try:
                 rate.sleep()
@@ -195,7 +220,7 @@ class BurgerBotBase(object):
             if self.items is not None:
 
                 for item, name, points, cloud in zip(self.items, self.item_names, self.item_points, self.item_clouds):
-                    self._publish_frame(item[0:3],name)
+                    self._publish_frame(item[0:3],"detected_{}".format(name))
 
                     if cloud:
                         cloud.header.stamp = stamp
@@ -230,10 +255,12 @@ class BurgerBotBase(object):
             else:
                 try:
                     target_idx = int(cmd)
-                    if (target_idx > 0) and (target_idx <= len(item_names)):
+                    print(target_idx,len(self.item_names))
+                    if (target_idx > 0) and (target_idx <= len(self.item_names)):
                         self._call_compute_target_configuration(self.items[target_idx,:])
                         continue
-                except:
+                except Exception as err:
+                    print(err)
                     pass
 
                 print("Sorry, I didn't get that.")
