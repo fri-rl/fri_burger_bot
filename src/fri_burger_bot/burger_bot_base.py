@@ -257,7 +257,7 @@ class BurgerBotBase(object):
                     target_idx = int(cmd)
                     print(target_idx,len(self.item_names))
                     if (target_idx > 0) and (target_idx <= len(self.item_names)):
-                        self._call_compute_target_configuration(self.items[target_idx,:])
+                        self._call_compute_target_configuration(self.items[target_idx-1,:])
                         continue
                 except Exception as err:
                     print(err)
