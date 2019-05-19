@@ -279,7 +279,7 @@ class BurgerBotBase(object):
 
 
     def _call_compute_target_configuration(self, target_item):
-        target_pose = np.array([0.0, 0.0, 0.0, 0.5*np.pi, 0.0, 0.0])
+        target_pose = np.array([0.0, 0.0, 0.0, np.pi, 0.0, 0.0])
         target_pose[0:3] = target_item[0:3]
         des_joint_state = self.compute_target_configuration(self.get_joint_state(), target_pose)
         self._des_joint_state = des_joint_state
