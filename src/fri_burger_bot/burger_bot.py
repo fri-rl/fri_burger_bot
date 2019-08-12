@@ -37,7 +37,8 @@ class BurgerBot(BurgerBotBase):
     def get_camera_pose(self):
 
         # This transformation is wrong, replace it with the correct one.
-        return np.array([0.107, 0.429, -1.448, 3.085, -0.933, -1.629])
+        # return np.array([1.415, 0.161, 0.515, -2.207, 0.010, 1.605])
+        return  np.array([-0.107, -0.429, 1.448, -3.085, 0.933, 1.629])
 
 
     # This method gets a Nx6 numpy array where each row

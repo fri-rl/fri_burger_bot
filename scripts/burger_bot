@@ -2,7 +2,15 @@
 
 import rospy
 
-from fri_burger_bot.burger_bot import BurgerBot
+# from fri_burger_bot.burger_bot_cyan_otter import BurgerBot
+# from fri_burger_bot.burger_bot_yellow_mink import BurgerBot
+# from fri_burger_bot.burger_bot_purple_weasel import BurgerBot
+# from fri_burger_bot.burger_bot_blue_ferret import BurgerBot
+# from fri_burger_bot.burger_bot_lime_beaver import BurgerBot
+# from fri_burger_bot.burger_bot_purple_raccoon import BurgerBot
+# from fri_burger_bot.burger_bot_yellow_armadillo import BurgerBot
+# from fri_burger_bot.burger_bot_purple_pronghorn import BurgerBot
+from fri_burger_bot.burger_bot_pink_ocelot import BurgerBot
 
 
 

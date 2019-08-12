@@ -16,6 +16,10 @@ from sensor_msgs.msg import JointState, PointCloud2
 
 import ros_numpy
 
+from fri_sawyer.sawyer import Sawyer, GRIPPER
+
+import time
+
 class BurgerBotBase(object):
 
     def __init__(self):
@@ -54,6 +58,8 @@ class BurgerBotBase(object):
         self.item_names = None
 
         self._des_joint_state = None
+
+        self.alexei = Sawyer('alexei')
 
     def filter_point_cloud(self, point_cloud):
 
@@ -235,6 +241,14 @@ class BurgerBotBase(object):
     def _io_run(self):
 
 
+        self.alexei.start()
+        self.alexei.go_home()
+        self.alexei.hold_active()
+        self.alexei.wait_until_reached()
+        self.alexei.release_active()
+
+        print("started alexei")
+
         while self.keep_running:
 
 
@@ -244,6 +258,7 @@ class BurgerBotBase(object):
                i : identify items.
                    known items [{}]
             {} : compute required configuration for respective item.
+               p : pick the respective item and place it for assembly.
                q : quit
             """.format(item_names, item_idx)
             cmd = raw_input("\n\n{}\n>>> ".format(help))
@@ -251,12 +266,16 @@ class BurgerBotBase(object):
             if cmd == "q":
                 self.stop()
             elif cmd == "i":
+                self._picture_pose()
                 self._call_identify_items()
+            elif cmd == "p":
+                self._pick_and_place()
             else:
                 try:
                     target_idx = int(cmd)
                     print(target_idx,len(self.item_names))
                     if (target_idx > 0) and (target_idx <= len(self.item_names)):
+                        self._pre_ik()
                         self._call_compute_target_configuration(self.items[target_idx-1,:])
                         continue
                 except Exception as err:
@@ -277,12 +296,84 @@ class BurgerBotBase(object):
         self.items, self.item_names, self.item_points, self.item_clouds = items, item_names, item_points, clouds
 
 
-
     def _call_compute_target_configuration(self, target_item):
         target_pose = np.array([0.0, 0.0, 0.0, np.pi, 0.0, 0.0])
-        target_pose[0:3] = target_item[0:3]
+        target_pose[0:3] = target_item[0:3]+[0.02, 0.0, -0.005]
+        # target_pose[0:3] = target_item[0:3]+[0.02, 0.0, -0.005]
         des_joint_state = self.compute_target_configuration(self.get_joint_state(), target_pose)
         self._des_joint_state = des_joint_state
+
+    def _picture_pose(self):
+        self.alexei.activate_desired_state_provider('idle')
+        pos = np.zeros((3,7))
+        pos[0,:] = [-1.828478515625, -1.292658203125, -3.042640625, -1.8396845703125, -0.184072265625, -1.02105078125, 0.0139326171875]
+        self.alexei.goto_position(pos)
+        self.alexei.hold_active()
+        self.alexei.wait_until_reached()
+        self.alexei.release_active()
+
+    def _pre_ik(self):
+        self.alexei.activate_desired_state_provider('idle')
+        pos = self.alexei._joint_home
+        self.alexei.goto_position(pos)
+        self.alexei.hold_active()
+        self.alexei.wait_until_reached()
+        self.alexei.release_active()
+
+    def _pick_and_place(self):
+
+        def home():
+            self.alexei.activate_desired_state_provider('idle')
+            pos = self.alexei._joint_home
+            self.alexei.goto_position(pos)
+            self.alexei.hold_active()
+            self.alexei.wait_until_reached()
+            self.alexei.release_active()
+
+        def des_pos():
+            self.alexei.activate_desired_state_provider('idle')
+            pos = np.zeros((3,7))
+            pos[0,:] = self._des_joint_state
+            self.alexei.goto_position(pos, GRIPPER.MAX)
+            self.alexei.hold_active()
+            self.alexei.wait_until_reached()
+            self.alexei.release_active()
+
+        def assembly_pos():
+            self.alexei.activate_desired_state_provider('idle')
+            pos = np.zeros((3,7))
+            pos[0,:] = [-0.82285546875, -0.36626953125, -2.9156630859375, -0.9636455078125, -0.2257744140625, -0.944591796875, 1.0413076171875]
+            self.alexei.goto_position(pos)
+            self.alexei.hold_active()
+            self.alexei.wait_until_reached()
+            self.alexei.release_active()
+
+        def grip():
+            self.alexei.goto_position(None,GRIPPER.MIN)
+            self.alexei.hold_active()
+            self.alexei.wait_until_reached()
+            self.alexei.release_active()
+            time.sleep(1.0)
+
+
+        def release():
+            self.alexei.goto_position(None,GRIPPER.MAX)
+            self.alexei.hold_active()
+            self.alexei.wait_until_reached()
+            self.alexei.release_active()
+            time.sleep(1.0)
+
+        if self._des_joint_state is None:
+            print("no desired configuration")
+            return
+
+        home()
+        des_pos()
+        grip()
+        home()
+        assembly_pos()
+        release()
+        home()
 
 
     #####################################
